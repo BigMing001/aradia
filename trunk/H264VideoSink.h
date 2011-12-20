@@ -21,10 +21,10 @@ extern "C"
 
 class H264VideoSink : public VirtualSink {
 public:
-	static H264VideoSink * createNew(UsageEnvironment& env, char const* fileName,const char* sProp,CodecID codecID,int bufSize,int aWidth,int aHeight,int frameRate,CodecID codec);
+	static H264VideoSink * createNew(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,int width,int height,CodecID codec);
 	
 protected:
-	H264VideoSink(UsageEnvironment& env, const char * out_filename,const char * sProp,CodecID codeciD,int bufSize,int aWidth,int aHeight,int frameRate,CodecID codec);
+	H264VideoSink(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,int width,int height,CodecID codec);
 	// called only by createNew()
 	virtual ~H264VideoSink();
 	
@@ -49,12 +49,15 @@ protected:
 	static void HiloThread(void * arg);
 	int w;
 	int h;
+	int frameRate;
+	CodecID outputCodec;
 	uintptr_t mThread;
 	PixelFormat formatoPixel;
 	const char * mFileName;
     static const DWORD bufferSizeInMiliSec = 2000;
 	void AddData(uint8_t* aData, int aSize);
 	static void HiloThread2(void * arg);
+	CRITICAL_SECTION criticalSection;
 	
 };
 

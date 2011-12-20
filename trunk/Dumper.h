@@ -41,7 +41,7 @@ public:
 	int getWidth();
 	CodecID getOutputCodec();
 	void setOutputCodec(CodecID outputCodec);
-	
+	void getVideoContext();
 private:
 	
 	TaskScheduler * task;
@@ -54,5 +54,7 @@ private:
 	int h;
 	CodecID outCodec;
 	const char * outputFileName;
+	Boolean isMpeg4;
+	Boolean isH264;
 	
 };

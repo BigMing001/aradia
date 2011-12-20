@@ -4,7 +4,7 @@
 const PixelFormat TSWriter::s_CodecPixFormat = PIX_FMT_YUV420P;
 
 
-void TSWriter::CrearArchivo(const std::string& aFilePath,int aWidth,
+void TSWriter::CrearArchivo(const char * filePath,int aWidth,
 				   int aHeight, int aFrameRate, PixelFormat aPixFmt,CodecID outCodec)
 {
 	
@@ -21,7 +21,7 @@ void TSWriter::CrearArchivo(const std::string& aFilePath,int aWidth,
 	 */
 	
 	mHasError = false;
-	mFilePath = aFilePath;
+	mFilePath = filePath;
 	mWidth = aWidth;
 	mHeight = aHeight;
 	mFrameRate = aFrameRate;
@@ -30,7 +30,7 @@ void TSWriter::CrearArchivo(const std::string& aFilePath,int aWidth,
 	mFormatCtx = NULL;
 	mVideoStream = NULL;
 	
-	if (mFilePath.empty()) mHasError = true, mErrorMsg = "File path is empty";
+	if (strcmp(mFilePath,"") == 0) mHasError = true, mErrorMsg = "File path is empty";
 	else {
 		mOutFormat = av_guess_format("mpegts", NULL,NULL);
 		if (!mOutFormat) mHasError = true, mErrorMsg = "Error recognize out file type";
@@ -42,7 +42,7 @@ void TSWriter::CrearArchivo(const std::string& aFilePath,int aWidth,
 				mOutFormat->video_codec = outCodec;
 				mFormatCtx->oformat = mOutFormat;
 				//sprintf_s(mFormatCtx->filename, sizeof(mFormatCtx->filename), "%s", mFilePath.c_str());
-		        sprintf(mFormatCtx->filename,"%s",mFilePath.c_str());
+		        sprintf(mFormatCtx->filename,"%s",mFilePath);
 				if (mOutFormat->video_codec == CODEC_ID_NONE) mHasError = true, mErrorMsg = "Unknown codec";
 				else {
 					mVideoStream = setup_video_stream();
@@ -50,11 +50,11 @@ void TSWriter::CrearArchivo(const std::string& aFilePath,int aWidth,
 					else {
 						if (av_set_parameters(mFormatCtx,NULL) < 0) mHasError = true, mErrorMsg = "Error set parameters";
 						else {
-							dump_format(mFormatCtx, 0, mFilePath.c_str(), 1);
+							dump_format(mFormatCtx, 0, mFilePath, 1);
 							if (!open_video()) mHasError = true, mErrorMsg = "Error open video";
 							else {
 								if (!(mOutFormat->flags & AVFMT_NOFILE)) {
-									if (url_fopen(&mFormatCtx->pb, mFilePath.c_str(), URL_WRONLY) < 0) {
+									if (url_fopen(&mFormatCtx->pb, mFilePath, URL_WRONLY) < 0) {
 										mHasError = true, mErrorMsg = "Error open file";
 									} else {
 										av_write_header(mFormatCtx);
@@ -99,7 +99,7 @@ TSWriter::setup_video_stream() {
 			c->codec_type = AVMEDIA_TYPE_VIDEO;
 			
 			/* put sample parameters */
-			c->bit_rate = avpicture_get_size(s_CodecPixFormat, mWidth, mHeight) * mFrameRate/*mBitRate*/;
+			c->bit_rate = 400000;//avpicture_get_size(s_CodecPixFormat, mWidth, mHeight) * mFrameRate/*mBitRate*/;
 			/* resolution must be a multiple of two */
 			c->width = mWidth;
 			c->height = mHeight;
