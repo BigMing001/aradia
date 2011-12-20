@@ -25,7 +25,7 @@ int main (int argc, char * const argv[]) {
 	setupCodecs();
 	if ( argc < 2 ) 
 	{
-		std::cout << "Error debes insertar dos argumentos<direccion rtsp><ancho><alto><fichero_salida.ts>" << endl;
+		std::cout << "Error debes insertar cuatro argumentos<direccion rtsp><ancho><alto><fichero_salida.ts>" << endl;
 	}else
 	{
 		RTSPDumper * dumper = new RTSPDumper();
