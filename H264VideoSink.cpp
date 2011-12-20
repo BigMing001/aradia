@@ -9,17 +9,17 @@
 
 static TSWriter * writer;
 
-H264VideoSink::H264VideoSink(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int aWidth,int aHeight,int fr,CodecID codec)
+H264VideoSink::H264VideoSink(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,int width,int height,CodecID codec)
 : VirtualSink(env, bufSize){
 	fPos = 0;
-	w = aWidth;
 	mThread = NULL;
-	mFileName = filename;
-	h = aHeight;
 	formatoPixel = PIX_FMT_RGB32;
+	w = width;
+	h = height;
+	mFileName = filename;
+	outputCodec = codec;
+	frameRate = fr;
 	mBufferSize = bufSize;
-	writer = new TSWriter();
-	writer->CrearArchivo(filename,w,h,fr,PIX_FMT_RGB32,codec);
 	mAVCodec = avcodec_find_decoder(codecID);
 	if ( mAVCodec != NULL) 
 	{
@@ -39,6 +39,7 @@ H264VideoSink::H264VideoSink(UsageEnvironment& env,char const * filename,const c
 		AddData(startCode, sizeof(startCode));
 		mAVCodecContext->extradata = mBuffer;
 		mAVCodecContext->extradata_size = fPos;
+		delete[] sPropRecords;
 	}
 	AddData(startCode, sizeof(startCode));
 	mAVCodecContext->flags = 0;
@@ -53,8 +54,11 @@ H264VideoSink::H264VideoSink(UsageEnvironment& env,char const * filename,const c
 		mAVCodecContext->flags2 |= CODEC_FLAG2_CHUNKS;
 	}
 	mAVFrame = avcodec_alloc_frame();
+	InitializeCriticalSection(&this->criticalSection);
 	
 }
+
+
 	
 void H264VideoSink::AddData(uint8_t* aData, int aSize){
 	memcpy(mBuffer + fPos, aData, aSize);
@@ -81,9 +85,9 @@ H264VideoSink::~H264VideoSink() {
 	}
 }
 
-H264VideoSink* H264VideoSink::createNew(UsageEnvironment& env, char const* fileName,const char * sProp,CodecID codecID,int aBufSize,int aWidth,int aHeight,int fr,CodecID codec) {
+H264VideoSink* H264VideoSink::createNew(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,int width,int height,CodecID codec) {
 	
-	return new H264VideoSink(env,fileName,sProp,codecID,aBufSize,aWidth,aHeight,fr,codec);
+	return new H264VideoSink(env,filename,sProp,codecID,bufSize,fr,width,height,codec);
 	
 }
 
@@ -106,7 +110,7 @@ Boolean H264VideoSink::continuePlaying() {
 
 void H264VideoSink::afterGettingFrame1(unsigned frameSize,
 								  struct timeval presentationTime) {
-	
+
 	int got_frame = 0;
 	unsigned int size = frameSize;
 	unsigned char *pBuffer = mBuffer + fPos;
@@ -130,17 +134,10 @@ void H264VideoSink::afterGettingFrame1(unsigned frameSize,
 	avpkt.size = size;
 	while (avpkt.size > sizeof(startCode4)) {
 		int len = avcodec_decode_video2(mAVCodecContext, mAVFrame, &got_frame, &avpkt);
-		if (len < 0) {
-			std::cout << "Error decoding frame" << endl;
-			return;
-		}
 		if ( got_frame ) 
 		{
-			//SwsContext *  scale_ctx = sws_getContext(mAVCodecContext->coded_width,
-			//mAVCodecContext->coded_height, mAVCodecContext->pix_fmt,
-			//w,h, PIX_FMT_RGB32, SWS_FAST_BILINEAR,NULL,NULL,NULL);
 			
-			SwsContext * scale_ctx = sws_getContext(mAVCodecContext->width, mAVCodecContext->height, mAVCodecContext->pix_fmt, w, h, PIX_FMT_RGB32, SWS_FAST_BILINEAR, NULL, NULL, NULL);
+			SwsContext * scale_ctx = sws_getContext(mAVCodecContext->width, mAVCodecContext->height, mAVCodecContext->pix_fmt, w, h, formatoPixel, SWS_FAST_BILINEAR, NULL, NULL, NULL);
 			if (scale_ctx)
 			{
 				rgb = avcodec_alloc_frame();
@@ -148,21 +145,26 @@ void H264VideoSink::afterGettingFrame1(unsigned frameSize,
 				{
 					mThread = _beginthread(&(H264VideoSink::HiloThread), 0, this);
 				}
+
 				AVFrame *rgb = avcodec_alloc_frame();
-				int numBytes = avpicture_get_size(PIX_FMT_RGB32,w,h);
+				int numBytes = avpicture_get_size(formatoPixel,w,h);
 				unsigned char * buf = new unsigned char[numBytes];
 				if ( rgb ) 
 				{
-					avpicture_fill((AVPicture*)rgb, (uint8_t*)buf, PIX_FMT_RGB32,w,h);
+					avpicture_fill((AVPicture*)rgb, (uint8_t*)buf,formatoPixel,w,h);
 
 					sws_scale(scale_ctx, mAVFrame->data, mAVFrame->linesize, 0,
 							  mAVCodecContext->height, rgb->data,
 							  rgb->linesize);
-
+					
+					EnterCriticalSection(&this->criticalSection);
 					mQueue.push_back(buf);
+					LeaveCriticalSection(&this->criticalSection);
+					
 					//writer->write_picture(rgb);
+					av_free(rgb);
 				}
-				av_free(rgb);
+				
 			}
 			sws_freeContext(scale_ctx);
 		}
@@ -180,6 +182,8 @@ typedef struct RecordData
   PixelFormat formatoPixel;
   const char *outputFileName;
   uint8_t * mBuffer;
+  int frameRate;
+  CodecID outputCodec;
 }RecordData;
 								 
 void H264VideoSink::HiloThread(void * arg)
@@ -194,27 +198,36 @@ void H264VideoSink::HiloThread(void * arg)
 	   int size = avpicture_get_size(data->formatoPixel,data->mWidth,data->mHeight);
 	   data->outputFileName = sink->mFileName;
 	   data->mBuffer =  new uint8_t[size];
+	   data->outputCodec = sink->outputCodec;
+	   data->frameRate = sink->frameRate;
 	   uintptr_t thread = NULL;
 	   
 	   while ( 1 )
 	   {
 		   unsigned int queueSize =0 ;
+		   EnterCriticalSection(&sink->criticalSection);
 		   queueSize = sink->mQueue.size();
+		   LeaveCriticalSection(&sink->criticalSection);
 		   DWORD sleep_i = sink->bufferSizeInMiliSec / (1 + queueSize);
 		   Sleep(sleep_i);
 		   if ( queueSize > 0 ) 
 		   {
+			   EnterCriticalSection(&sink->criticalSection);
 			   unsigned char * frame  = sink->mQueue.front();
                sink->mQueue.pop_front();
+			   LeaveCriticalSection(&sink->criticalSection);
 			   if ( data->mBuffer )
 			   {
 				   memcpy(data->mBuffer,frame,size);
+				   delete[]frame;
 			   }
 		   }
 		   if ( !thread ) 
 		   {
 			   thread = _beginthread(&(H264VideoSink::HiloThread2), 0, data);
 		   }
+
+		   
 	   }
 	   
 
@@ -226,6 +239,11 @@ void H264VideoSink::HiloThread2(void * args)
 	RecordData * data = ( RecordData * ) args;
 	if ( data ) 
 	{
+		   writer = new TSWriter();
+		   writer->CrearArchivo(data->outputFileName,data->mWidth,data->mHeight,data->frameRate,data->formatoPixel,data->outputCodec);
+		   std::cout << "Frame rate:" << data->frameRate << endl;
+		   std::cout << "Fichero a generar:" << data->outputFileName << endl;
+		   std::cout << "Codec:" << data->outputCodec << endl;
 		   while ( 1 )
 		   {
 		   AVFrame * frame = avcodec_alloc_frame();

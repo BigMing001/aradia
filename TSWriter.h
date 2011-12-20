@@ -10,7 +10,7 @@ extern "C"{
 
 class TSWriter {
 public:
-	void CrearArchivo(const std::string& aFilePath, int aWidth, int aHeight,
+	void CrearArchivo(const char * aFilePath, int aWidth, int aHeight,
 			 int aFrameRate, PixelFormat aPixFmt,CodecID outCodec);
 	~TSWriter();
 	
@@ -38,7 +38,7 @@ private:
 	bool mHasError;
 	std::string mErrorMsg;
 	//inner data
-	std::string mFilePath;
+	const char * mFilePath;
 	int mBitRate, mWidth, mHeight, mFrameRate;
 	PixelFormat mPixFmt;
 	AVOutputFormat *mOutFormat;

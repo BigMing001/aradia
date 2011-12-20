@@ -21,10 +21,10 @@ extern "C"
 
 class MPEG4VideoSink : public VirtualSink {
 public:
-	static MPEG4VideoSink * createNew(UsageEnvironment& env, char const* fileName,const char* sProp,CodecID codecID,int bufSize,int aWidth,int aHeight,int fr,CodecID outCodec);
+	static MPEG4VideoSink * createNew(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,CodecID outCodec,int aWidth,int aHeight);
 	
 protected:
-	MPEG4VideoSink(UsageEnvironment& env, const char * out_filename,const char * sProp,CodecID codeciD,int bufSize,int aWidth,int aHeight,int fr,CodecID outCodec);
+	MPEG4VideoSink(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,CodecID outCodec,int aWidth,int aHeight);
 	// called only by createNew()
 	virtual ~MPEG4VideoSink();
 	
@@ -49,13 +49,16 @@ private:
 	unsigned int fPos;
 	AVFrame * rgb;
 	std::deque<unsigned char*> mQueue;
-	static void HiloThread(void * arg);
+	static  void HiloThread(void * arg);
 	int w;
 	int h;
+	int frameRate;
 	uintptr_t mThread;
 	PixelFormat formatoPixel;
 	const char * mFileName;
     static const DWORD bufferSizeInMiliSec = 2000;
 	void AddData(uint8_t* aData, int aSize);
 	static void HiloThread2(void * arg);
+	CodecID outputCodec;
+	CRITICAL_SECTION criticalSection;
 };

@@ -1,11 +1,4 @@
-/*
- *  Dumper.cpp
- *  RTSPDumper
- *
- *  Created by Moises on 19/11/11.
- *  Copyright 2011 Vidium. All rights reserved.
- *
- */
+
 #include "stdafx.h"
 #include "Dumper.h"
 #include "MPEG4VideoSink.h"
@@ -102,21 +95,22 @@ void RTSPDumper::dumpFile()
 				cliente->setupMediaSubsession(*sub);
 				if ( strcmp(sub->codecName(),"H264") == 0  && strcmp(sub->mediumName(),"video") == 0)
 				{
-				    
+				    this->isH264 = true;
 					std::cout << "Flujo H264 Detectado...dumping.." << endl;
 					RTPSource * sourc =  sub->rtpSource();
 					//sink = H264VideoFileSink::createNew(*this->env, uri, sub->fmtp_spropparametersets(),1000000, false);
-					sink = H264VideoSink::createNew(*this->env, this->getOutputFileName(), sub->fmtp_spropparametersets(),CODEC_ID_H264,buf_size,this->getWidth(),this->getHeight(),this->getFrameRate(),this->getOutputCodec());
+					sink = H264VideoSink::createNew(*this->env, this->getOutputFileName(), sub->fmtp_spropparametersets(),CODEC_ID_H264,buf_size,this->getFrameRate(),this->getWidth(),this->getHeight(),this->getOutputCodec());
 					sourc->setPacketReorderingThresholdTime(1000000);
 					sub->sink = sink;
 					sub->sink->startPlaying(*sourc, 0, 0);
 				    
 				}else if ( !strcmp(sub->codecName(), "MPEG4") || !strcmp(sub->codecName(), "MP4V-ES") && strcmp(sub->mediumName(),"video") == 0)
 				{
+					this->isMpeg4 = true;
 					std::cout << "Flujo MPEG4 Detectado...dumping.." << endl;
 					RTPSource * sourc =  sub->rtpSource();
 					//sink = H264VideoFileSink::createNew(*this->env, uri, sub->fmtp_spropparametersets(),1000000, false);
-					mpegVideoSink = MPEG4VideoSink::createNew(*this->env, this->getOutputFileName(), sub->fmtp_config(),CODEC_ID_MPEG4,buf_size,this->getWidth(),this->getHeight(),this->getFrameRate(),this->getOutputCodec());
+					mpegVideoSink = MPEG4VideoSink::createNew(*this->env, this->getOutputFileName(), sub->fmtp_config(),CODEC_ID_MPEG4,buf_size,this->getFrameRate(),this->getOutputCodec(),this->getWidth(),this->getHeight());
 					sourc->setPacketReorderingThresholdTime(1000000);
 					sub->sink = mpegVideoSink;
 					sub->sink->startPlaying(*sourc, 0, 0);
