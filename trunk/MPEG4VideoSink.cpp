@@ -61,6 +61,11 @@ void MPEG4VideoSink::AddData(uint8_t* aData, int aSize){
 }
 	
 MPEG4VideoSink::~MPEG4VideoSink() {
+	if ( mThread ) 
+	{
+		WaitForSingleObject((HANDLE)mThread, INFINITE);
+        mThread = NULL;
+	}
 	if (mAVFrame)
 	{
 		avcodec_close(mAVCodecContext);
