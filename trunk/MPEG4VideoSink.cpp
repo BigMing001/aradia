@@ -8,25 +8,27 @@
 
 
 static TSWriter * writer;
+static int frame_count;
 
-MPEG4VideoSink::MPEG4VideoSink(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,CodecID outCodec,int aWidth,int aHeight)
+MPEG4VideoSink::MPEG4VideoSink(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,CodecID outCodec)
 : VirtualSink(env, bufSize){
 	fPos = 0;
 	mThread = NULL;
-	w = aWidth;
-	h = aHeight;
-	formatoPixel = PIX_FMT_RGB32;
+	w = 0;
+	h = 0;
+	formatoPixel = PIX_FMT_NONE;
 	mFileName = filename;
-	frameRate = fr;
+	//frameRate = fr;
 	outputCodec = outCodec;
+	isGotFrame = false;
 	mBufferSize = bufSize;
 	writer = new TSWriter();
 	mAVCodec = avcodec_find_decoder(codecID);
 	if ( mAVCodec != NULL) 
 	{
-		std::cout << "Decoder finded" << endl;
+		std::cout << "Decoder finded" << std::endl;
 	}else {
-		std::cout << "Not finded" << endl;
+		std::cout << "Not finded" << std::endl;
 	}
 	mAVCodecContext = avcodec_alloc_context();
 	if(sProp != NULL){
@@ -43,10 +45,10 @@ MPEG4VideoSink::MPEG4VideoSink(UsageEnvironment& env,char const * filename,const
 
 	
 	if (avcodec_open(mAVCodecContext, mAVCodec) < 0) {
-		std::cout << "Error opening codec" << endl;
+		std::cout << "Error opening codec" << std::endl;
 	}else
 	{
-		std::cout << "Codec opened successfull" << endl;
+		std::cout << "Codec opened successfull" << std::endl;
 	}
 	mAVFrame = avcodec_alloc_frame();
 	InitializeCriticalSection(&this->criticalSection);
@@ -73,9 +75,9 @@ MPEG4VideoSink::~MPEG4VideoSink() {
 	}
 }
 
-MPEG4VideoSink* MPEG4VideoSink::createNew(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,CodecID outCodec,int aWidth,int aHeight) {
+MPEG4VideoSink* MPEG4VideoSink::createNew(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,CodecID outCodec) {
 	
-	return new MPEG4VideoSink(env,filename,sProp,codecID,bufSize,fr,outCodec,aWidth,aHeight);
+	return new MPEG4VideoSink(env,filename,sProp,codecID,bufSize,outCodec);
 	
 }
 
@@ -124,8 +126,8 @@ void MPEG4VideoSink::afterGettingFrame1(unsigned frameSize,
 		int len = avcodec_decode_video2(mAVCodecContext, mAVFrame, &got_frame, &avpkt);
 		if ( got_frame ) 
 		{
-			
-			SwsContext * scale_ctx = sws_getContext(mAVCodecContext->width, mAVCodecContext->height, mAVCodecContext->pix_fmt, w, h, formatoPixel, SWS_FAST_BILINEAR, NULL, NULL, NULL);
+			isGotFrame = true;
+			scale_ctx = sws_getContext(mAVCodecContext->width, mAVCodecContext->height, mAVCodecContext->pix_fmt, mAVCodecContext->width, mAVCodecContext->height, PIX_FMT_RGB32, SWS_FAST_BILINEAR, NULL, NULL, NULL);
 			if (scale_ctx)
 			{
 				rgb = avcodec_alloc_frame();
@@ -134,11 +136,12 @@ void MPEG4VideoSink::afterGettingFrame1(unsigned frameSize,
 					mThread = _beginthread(&(MPEG4VideoSink::HiloThread), 0, this);
 				}
 				AVFrame *rgb = avcodec_alloc_frame();
-				int numBytes = avpicture_get_size(PIX_FMT_RGB32,w,h);
+				int stride = mAVCodecContext->width * 4;
+				int numBytes = mAVCodecContext->height * stride;
 				unsigned char * buf = new unsigned char[numBytes];
 				if ( rgb ) 
 				{
-					avpicture_fill((AVPicture*)rgb, (uint8_t*)buf,formatoPixel,w,h);
+					avpicture_fill((AVPicture*)rgb, (uint8_t*)buf,PIX_FMT_RGB32,mAVCodecContext->width,mAVCodecContext->height);
 
 					sws_scale(scale_ctx, mAVFrame->data, mAVFrame->linesize, 0,
 							  mAVCodecContext->height, rgb->data,
@@ -167,10 +170,11 @@ typedef struct RecordData
   int mWidth;
   int mHeight;
   PixelFormat formatoPixel;
-  CodecID outputc;
+  CodecID outputCodec;
   int frameRate;
   const char *outputFileName;
   uint8_t * mBuffer;
+  bool isGotFrame;
 }RecordData;
 						
 void  MPEG4VideoSink::HiloThread(void *  arg)
@@ -179,14 +183,16 @@ void  MPEG4VideoSink::HiloThread(void *  arg)
 	if ( sink ) 
 	{
 	   RecordData * data =  new RecordData();
-	   data->mWidth = sink->w;
-	   data->mHeight = sink->h;
-	   data->formatoPixel = sink->formatoPixel;
-	   data->frameRate  = sink->frameRate;
-	   data->outputc = sink->outputCodec;
-	   int size = avpicture_get_size(data->formatoPixel,data->mWidth,data->mHeight);
+	   data->mWidth = sink->mAVCodecContext->width;
+	   data->mHeight = sink->mAVCodecContext->height;
+	   data->formatoPixel = PIX_FMT_RGB32;
+	   data->outputCodec = sink->outputCodec;
+	   int stride = sink->mAVCodecContext->width * 4;
+	   int numBytes = sink->mAVCodecContext->height * stride;
+	   int autoBufSize =  sizeof(unsigned char) * data->mHeight * stride;
 	   data->outputFileName = sink->mFileName;
-	   data->mBuffer =  new uint8_t[size];
+	   data->isGotFrame = sink->isGotFrame;
+	   data->mBuffer =  new uint8_t[autoBufSize];
 	   uintptr_t thread = NULL;
 	   while ( 1 )
 	   {
@@ -204,7 +210,7 @@ void  MPEG4VideoSink::HiloThread(void *  arg)
 			   LeaveCriticalSection(&sink->criticalSection);
 			   if ( data->mBuffer )
 			   {
-				   memcpy(data->mBuffer,frame,size);
+				   memcpy(data->mBuffer,frame,autoBufSize);
 				   delete[] frame;
 			   }
 		   }
@@ -223,7 +229,9 @@ void MPEG4VideoSink::HiloThread2(void * args)
 	RecordData * data = ( RecordData * ) args;
 	if ( data ) 
 	{
-		   writer->CrearArchivo(data->outputFileName,data->mWidth,data->mHeight,data->frameRate,data->formatoPixel,data->outputc);
+		   writer->CrearArchivo(data->outputFileName,data->mWidth,data->mHeight,data->formatoPixel,data->outputCodec);
+		   std::cout << "Fichero a generar = " << data->outputFileName << std::endl;
+		   std::cout << "Codec = " << data->outputCodec <<  std::endl;
 		   while ( 1 )
 		   {
 		   AVFrame * frame = avcodec_alloc_frame();
@@ -232,10 +240,15 @@ void MPEG4VideoSink::HiloThread2(void * args)
 		   DWORD sleep_i = writer->getTicksPerFrame();
 		   if ( writer->hasError() ) 
 		   {
-			std::cout << "Error creating file" << endl;
+			     //Un error se ha producido salimos.
+			   exit ( -1  );
 		   }else
 		   {
-			writer->write_picture(frame);
+		    if ( data->isGotFrame == true ) 
+			{
+				frame_count++;
+				writer->write_picture(frame,frame_count);
+			}
 		   }
 		   Sleep(sleep_i);
 		   }

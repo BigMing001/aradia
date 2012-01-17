@@ -10,11 +10,10 @@ extern "C"{
 
 class TSWriter {
 public:
-	void CrearArchivo(const char * aFilePath, int aWidth, int aHeight,
-			 int aFrameRate, PixelFormat aPixFmt,CodecID outCodec);
+	void CrearArchivo(const char * aFilePath, int aWidth, int aHeight, PixelFormat aPixFmt,CodecID outCodec);
 	~TSWriter();
 	
-	bool write_picture(AVFrame *aPicture);
+	bool write_picture(AVFrame *aPicture,int frame_count);
 	
 	bool hasError() { return mHasError; }
 	std::string getError() { return mErrorMsg; }
@@ -39,13 +38,12 @@ private:
 	std::string mErrorMsg;
 	//inner data
 	const char * mFilePath;
-	int mBitRate, mWidth, mHeight, mFrameRate;
+	int mBitRate, mWidth, mHeight;
 	PixelFormat mPixFmt;
 	AVOutputFormat *mOutFormat;
 	AVFormatContext *mFormatCtx;
 	AVStream *mVideoStream;
-	
-	static const PixelFormat s_CodecPixFormat;
+	static const PixelFormat PIXEL_FORMAT_MAIN;
 	
 	struct PictureData {
 		uint8_t *mOutBuf;

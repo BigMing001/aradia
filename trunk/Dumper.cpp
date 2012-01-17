@@ -16,10 +16,10 @@ void RTSPDumper::setupRtspClient(const char * uri)
 	if ( this->client != NULL )
 	{
 		char * opt = this->client->sendOptionsCmd(uri);
-		std::cout << opt << endl;
+		std::cout << opt << std::endl;
 		delete[] opt;
 		char * bufcmd = this->client->describeURL(uri);
-		std::cout << bufcmd << endl;
+		std::cout << bufcmd << std::endl;
 		this->sesion = MediaSession::createNew(*this->env,bufcmd);
 		delete[] bufcmd;
 	}
@@ -96,10 +96,10 @@ void RTSPDumper::dumpFile()
 				if ( strcmp(sub->codecName(),"H264") == 0  && strcmp(sub->mediumName(),"video") == 0)
 				{
 				    this->isH264 = true;
-					std::cout << "Flujo H264 Detectado...dumping.." << endl;
+					std::cout << "Flujo H264 Detectado...dumping.." << std::endl;
 					RTPSource * sourc =  sub->rtpSource();
 					//sink = H264VideoFileSink::createNew(*this->env, uri, sub->fmtp_spropparametersets(),1000000, false);
-					sink = H264VideoSink::createNew(*this->env, this->getOutputFileName(), sub->fmtp_spropparametersets(),CODEC_ID_H264,buf_size,this->getFrameRate(),this->getWidth(),this->getHeight(),this->getOutputCodec());
+					sink = H264VideoSink::createNew(*this->env, this->getOutputFileName(), sub->fmtp_spropparametersets(),CODEC_ID_H264,buf_size,this->getOutputCodec());
 					sourc->setPacketReorderingThresholdTime(1000000);
 					sub->sink = sink;
 					sub->sink->startPlaying(*sourc, 0, 0);
@@ -107,10 +107,10 @@ void RTSPDumper::dumpFile()
 				}else if ( !strcmp(sub->codecName(), "MPEG4") || !strcmp(sub->codecName(), "MP4V-ES") && strcmp(sub->mediumName(),"video") == 0)
 				{
 					this->isMpeg4 = true;
-					std::cout << "Flujo MPEG4 Detectado...dumping.." << endl;
+					std::cout << "Flujo MPEG4 Detectado...dumping" << std::endl;
 					RTPSource * sourc =  sub->rtpSource();
 					//sink = H264VideoFileSink::createNew(*this->env, uri, sub->fmtp_spropparametersets(),1000000, false);
-					mpegVideoSink = MPEG4VideoSink::createNew(*this->env, this->getOutputFileName(), sub->fmtp_config(),CODEC_ID_MPEG4,buf_size,this->getFrameRate(),this->getOutputCodec(),this->getWidth(),this->getHeight());
+					mpegVideoSink = MPEG4VideoSink::createNew(*this->env, this->getOutputFileName(), sub->fmtp_config(),CODEC_ID_MPEG4,buf_size,this->getOutputCodec());
 					sourc->setPacketReorderingThresholdTime(1000000);
 					sub->sink = mpegVideoSink;
 					sub->sink->startPlaying(*sourc, 0, 0);
