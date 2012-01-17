@@ -8,7 +8,7 @@
 #include "TSWriter.h"
 #include <deque>
 
-using namespace std;
+
 
 #define MAX_SIZE 20000
 
@@ -21,10 +21,13 @@ extern "C"
 
 class MPEG4VideoSink : public VirtualSink {
 public:
-	static MPEG4VideoSink * createNew(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,CodecID outCodec,int aWidth,int aHeight);
-	
+	//static MPEG4VideoSink * createNew(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,CodecID outCodec,int aWidth,int aHeight);
+	//static MPEG4VideoSink * createNew(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,CodecID outCodec);
+	static MPEG4VideoSink * createNew(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,CodecID outCodec);
 protected:
-	MPEG4VideoSink(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,CodecID outCodec,int aWidth,int aHeight);
+	//MPEG4VideoSink(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,CodecID outCodec,int aWidth,int aHeight);
+	//MPEG4VideoSink(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,int fr,CodecID outCodec);
+	MPEG4VideoSink(UsageEnvironment& env,char const * filename,const char  * sProp,CodecID codecID,int bufSize,CodecID outCodec);
 	// called only by createNew()
 	virtual ~MPEG4VideoSink();
 	
@@ -61,4 +64,6 @@ private:
 	static void HiloThread2(void * arg);
 	CodecID outputCodec;
 	CRITICAL_SECTION criticalSection;
+	bool isGotFrame;
+	struct SwsContext * scale_ctx;
 };

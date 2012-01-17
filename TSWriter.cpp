@@ -1,13 +1,15 @@
 #include "stdafx.h"
 #include "TSWriter.h"
+#include <iostream>
 
-const PixelFormat TSWriter::s_CodecPixFormat = PIX_FMT_YUV420P;
+using namespace std;
+
+const PixelFormat TSWriter::PIXEL_FORMAT_MAIN = PIX_FMT_YUV420P;
 
 
 void TSWriter::CrearArchivo(const char * filePath,int aWidth,
-				   int aHeight, int aFrameRate, PixelFormat aPixFmt,CodecID outCodec)
+				   int aHeight,PixelFormat aPixFmt,CodecID outCodec)
 {
-	
 	/*
 	 : mHasError(false)
 	 , mFilePath(aFilePath)
@@ -19,12 +21,10 @@ void TSWriter::CrearArchivo(const char * filePath,int aWidth,
 	 , mFormatCtx(NULL)
 	 , mVideoStream(NULL)
 	 */
-	
 	mHasError = false;
 	mFilePath = filePath;
 	mWidth = aWidth;
 	mHeight = aHeight;
-	mFrameRate = aFrameRate;
 	mPixFmt = aPixFmt;
 	mOutFormat = NULL;
 	mFormatCtx = NULL;
@@ -99,7 +99,7 @@ TSWriter::setup_video_stream() {
 			c->codec_type = AVMEDIA_TYPE_VIDEO;
 			
 			/* put sample parameters */
-			c->bit_rate = 400000;//avpicture_get_size(s_CodecPixFormat, mWidth, mHeight) * mFrameRate/*mBitRate*/;
+			c->bit_rate = 180000;
 			/* resolution must be a multiple of two */
 			c->width = mWidth;
 			c->height = mHeight;
@@ -107,10 +107,10 @@ TSWriter::setup_video_stream() {
 			 of which frame timestamps are represented. for fixed-fps content,
 			 timebase should be 1/framerate and timestamp increments should be
 			 identically 1. */
-			c->time_base.den = mFrameRate;
+			c->time_base.den = 30; 
 			c->time_base.num = 1;
-			c->gop_size = 12; /* emit one intra frame every twelve frames at most */
-			c->pix_fmt = s_CodecPixFormat;
+			c->gop_size = 25; /* emit one intra frame every twelve frames at most */
+			c->pix_fmt = this->PIXEL_FORMAT_MAIN;
 			if (c->codec_id == CODEC_ID_MPEG2VIDEO) {
 				/* just for testing, we also add B frames */
 				c->max_b_frames = 2;
@@ -148,6 +148,7 @@ TSWriter::setup_video_stream() {
 				 wpredp=2
 				 rc_lookahead=30
 				 */
+				
 				c->coder_type = FF_CODER_TYPE_AC;
 				c->flags = CODEC_FLAG_LOOP_FILTER;
 				c->me_cmp = FF_CMP_CHROMA;
@@ -194,13 +195,13 @@ TSWriter::open_video() {
 				}
 				mData.mOutBuf = NULL;
 				if (!(mFormatCtx->oformat->flags & AVFMT_RAWPICTURE)) {
-					mData.mOutBufSize = avpicture_get_size(s_CodecPixFormat, mWidth, mHeight);
+					mData.mOutBufSize = avpicture_get_size(this->PIXEL_FORMAT_MAIN, mWidth, mHeight);
 					mData.mOutBuf = (uint8_t*)av_malloc(mData.mOutBufSize);
 					if (!mData.mOutBuf) return false;
 				}
 				mData.mTmpPicture = NULL;
 				if (codecContext->pix_fmt != mPixFmt) {
-					mData.mTmpPicture = alloc_picture(s_CodecPixFormat, codecContext->width, codecContext->height);
+					mData.mTmpPicture = alloc_picture(this->PIXEL_FORMAT_MAIN, codecContext->width, codecContext->height);
 					if (!mData.mTmpPicture) return false;
 				}
 				return true;
@@ -245,7 +246,7 @@ TSWriter::close_video()
 }
 
 bool
-TSWriter::write_picture(AVFrame *aPicture) {
+TSWriter::write_picture(AVFrame *aPicture,int frame_count) {
 	if (!aPicture) {
 		mHasError = true;
 		mErrorMsg = "aPicture is empty";
@@ -264,7 +265,7 @@ TSWriter::write_picture(AVFrame *aPicture) {
 							  0, codecContext->height, mData.mTmpPicture->data, mData.mTmpPicture->linesize);
 					sws_freeContext(scaleContext);
 					picture = mData.mTmpPicture;
-					picture->pts = aPicture->pts;
+					picture->pts = frame_count;
 				}
 			}
 			int ret = -1;
@@ -274,12 +275,12 @@ TSWriter::write_picture(AVFrame *aPicture) {
 				AVPacket pkt;
 				av_init_packet(&pkt);
 				
-				pkt.flags |= PKT_FLAG_KEY;
+				pkt.flags |= AV_PKT_FLAG_KEY;
 				pkt.stream_index= mVideoStream->index;
 				pkt.data= (uint8_t *)picture;
 				pkt.size= sizeof(AVPicture);
 				
-				ret = av_interleaved_write_frame(mFormatCtx, &pkt);
+				ret = av_write_frame(mFormatCtx, &pkt);
 			} else {
 				/* encode the image */
 				int out_size = 0;
@@ -291,21 +292,14 @@ TSWriter::write_picture(AVFrame *aPicture) {
 				if (out_size > 0) {
 					AVPacket pkt;
 					av_init_packet(&pkt);
-					
 					if (codecContext->coded_frame->pts != AV_NOPTS_VALUE)
 						pkt.pts= av_rescale_q(codecContext->coded_frame->pts, codecContext->time_base, mVideoStream->time_base);
-					/*else if (picture->pts != AV_NOPTS_VALUE)
-					 pkt.pts = picture->pts;
-					 else
-					 pkt.pts = aPicture->pts;*/
 					if(codecContext->coded_frame->key_frame)
-						pkt.flags |= PKT_FLAG_KEY;
+						pkt.flags |= AV_PKT_FLAG_KEY;
 					pkt.stream_index= mVideoStream->index;
 					pkt.data= mData.mOutBuf;
 					pkt.size= out_size;
-					//pkt.dts = AV_NOPTS_VALUE;//mVideoStream->last_IP_pts;
-					//
-					ret = av_interleaved_write_frame(mFormatCtx, &pkt);
+					ret = av_write_frame(mFormatCtx, &pkt);
 				} else {
 					ret = 0;
 				}

@@ -22,7 +22,6 @@ extern "C"
 #define MAXIMUM_QUALITY_FRAME_RATE 30
 #define HIGHT_QUALITY_FRAME_RATE 25
 
-using namespace std;
 
 class RTSPDumper
 {
